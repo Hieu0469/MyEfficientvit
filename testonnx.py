@@ -1,65 +1,118 @@
 import onnxruntime as ort
 import numpy as np
 import time
+import os
 
-def measure_onnx_fps(model_path, input_shape, iterations=100, warmup_iters=10):
-    print(f"Đang tải mô hình: {model_path} ...")
-    
-    # Ưu tiên chạy trên GPU, nếu không có sẽ tự lùi về CPU
+def measure_single_onnx(model_path, input_shape, iterations=100, warmup_iters=10):
+    """Hàm lõi: Đo FPS và Latency cho 1 mô hình cụ thể"""
     providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+    
     try:
         session = ort.InferenceSession(model_path, providers=providers)
     except Exception as e:
-        print("Lỗi khi tải mô hình:", e)
-        return
+        return {"error": f"Lỗi tải mô hình: {e}"}
 
-    # Lấy thông tin input
     input_name = session.get_inputs()[0].name
     
-    # Kiểm tra xem mô hình đang chạy trên thiết bị nào
-    current_provider = session.get_providers()[0]
-    print(f"Mô hình đang chạy trên: {current_provider}")
-
-    # Tạo dữ liệu giả (dummy data) với kích thước chỉ định
-    # Ví dụ: input_shape = (1, 3, 512, 1024)
-    print(f"Khởi tạo dữ liệu giả với shape: {input_shape}")
+    # Tạo dữ liệu giả
     dummy_input = np.random.randn(*input_shape).astype(np.float32)
 
-    # --- BƯỚC 1: WARM-UP (KHỞI ĐỘNG) ---
-    print(f"Đang Warm-up ({warmup_iters} lần)...")
+    # 1. Warm-up
     for _ in range(warmup_iters):
         session.run(None, {input_name: dummy_input})
 
-    # --- BƯỚC 2: BENCHMARK (ĐO ĐẠC) ---
-    print(f"Đang đo FPS ({iterations} vòng lặp)...")
-    
+    # 2. Benchmark
     start_time = time.time()
     for _ in range(iterations):
         session.run(None, {input_name: dummy_input})
     end_time = time.time()
 
-    # --- BƯỚC 3: TÍNH TOÁN KẾT QUẢ ---
+    # 3. Tính toán
     total_time = end_time - start_time
-    time_per_inference = total_time / iterations
+    time_per_inference = (total_time / iterations) * 1000 # đổi ra ms
     fps = iterations / total_time
+    
+    # Trả về device đang chạy để biết có nhận GPU không
+    device = session.get_providers()[0]
 
-    print("-" * 30)
-    print("KẾT QUẢ BENCHMARK:")
-    print(f"- Tổng thời gian chạy {iterations} ảnh: {total_time:.4f} giây")
-    print(f"- Thời gian trung bình 1 ảnh (Latency): {time_per_inference * 1000:.2f} ms")
-    print(f"- Tốc độ khung hình (FPS): {fps:.2f} FPS")
-    print("-" * 30)
+    return {
+        "latency_ms": time_per_inference,
+        "fps": fps,
+        "device": device,
+        "error": None
+    }
+
+def benchmark_models(models_config, iterations=100, warmup_iters=10):
+    """Hàm quản lý: Chạy test nhiều mô hình và in bảng báo cáo"""
+    print(f"Bắt đầu benchmark {len(models_config)} mô hình...\n")
+    
+    results = []
+    
+    for config in models_config:
+        name = config.get("name", os.path.basename(config["path"]))
+        path = config["path"]
+        shape = config["shape"]
+        
+        print(f"-> Đang test: {name} | Shape: {shape} ...")
+        
+        res = measure_single_onnx(path, shape, iterations, warmup_iters)
+        
+        # Gộp thông tin cấu hình và kết quả lại
+        res["name"] = name
+        res["shape"] = str(shape)
+        results.append(res)
+        
+    # --- IN BẢNG BÁO CÁO TỔNG HỢP ---
+    print("\n" + "="*80)
+    print(f"{'TÊN MÔ HÌNH':<30} | {'SHAPE':<18} | {'DEVICE':<22} | {'LATENCY (ms)':<12} | {'FPS':<8}")
+    print("-" * 80)
+    
+    for r in results:
+        if r["error"]:
+            print(f"{r['name']:<30} | LỖI: {r['error']}")
+        else:
+            print(f"{r['name']:<30} | {r['shape']:<18} | {r['device']:<22} | {r['latency_ms']:<12.2f} | {r['fps']:<8.2f}")
+    print("="*80)
+
 
 # ==========================================
 # CÁCH SỬ DỤNG
 # ==========================================
+if __name__ == "__main__":
+    # Khai báo danh sách các mô hình cần test
+    # Bạn có thể thiết lập shape khác nhau cho từng mô hình nếu muốn
+    models_to_test = [
+        {
+            "name": "EfficientViT-B0",
+            "path": r"e:\work\DL\new city\onnx\efficientvit-seg-b0-cityscapes.onnx",
+            "shape": (1, 3, 512, 1024)
+        },
+        {
+            "name": "EfficientViT-B1",
+            "path": r"e:\work\DL\new city\onnx\efficientvit-seg-b1-cityscapes.onnx",
+            "shape": (1, 3, 512, 1024)
+        },
+        {
+            "name": "EfficientViT-B2",
+            "path": r"e:\work\DL\new city\onnx\efficientvit-seg-b2-cityscapes.onnx",
+            "shape": (1, 3, 512, 1024)
+        },
+        {
+            "name": "EfficientViT-B3",
+            "path": r"e:\work\DL\new city\onnx\efficientvit-seg-b3-cityscapes.onnx",
+            "shape": (1, 3, 512, 1024)
+        },
+        {
+            "name": "EfficientViT-L1",
+            "path": r"e:\work\DL\new city\onnx\efficientvit-seg-l1-cityscapes.onnx",
+            "shape": (1, 3, 512, 1024)
+        },
+        {
+            "name": "EfficientViT-L2",
+            "path": r"e:\work\DL\new city\onnx\efficientvit-seg-l2-cityscapes.onnx",
+            "shape": (1, 3, 512, 1024)
+        },
+    ]
 
-# 1. Đường dẫn tới file ONNX của bạn
-model_path = r"e:\work\DL\new city\onnx\efficientvit-seg-b0-cityscapes.onnx"
-
-# 2. Định nghĩa shape đầu vào (Batch_size, Channels, Height, Width)
-# Thay đổi độ phân giải tại đây để xem FPS thay đổi thế nào nhé (vd: 512x1024)
-input_shape = (1, 3, 512, 1024) 
-
-# 3. Gọi hàm kiểm tra
-measure_onnx_fps(model_path, input_shape, iterations=100, warmup_iters=20)
+    # Chạy benchmark
+    benchmark_models(models_to_test, iterations=10, warmup_iters=5)
