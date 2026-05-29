@@ -29,16 +29,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # ── Cần cài: pip install efficientvit ─────────────────────────────────────────
-from efficientvit.models.efficientvit.backbone import (
-    EfficientViTBackbone,
-    EfficientViTLargeBackbone,
-    efficientvit_backbone_b0,
-    efficientvit_backbone_b1,
-    efficientvit_backbone_b2,
-    efficientvit_backbone_b3,
-    efficientvit_backbone_l1,
-    efficientvit_backbone_l2,
-)
+# from efficientvit.models.efficientvit.backbone import (
+#     EfficientViTBackbone,
+#     EfficientViTLargeBackbone,
+#     efficientvit_backbone_b0,
+#     efficientvit_backbone_b1,
+#     efficientvit_backbone_b2,
+#     efficientvit_backbone_b3,
+#     efficientvit_backbone_l1,
+#     efficientvit_backbone_l2,
+# )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
