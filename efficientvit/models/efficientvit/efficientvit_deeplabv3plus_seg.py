@@ -63,12 +63,23 @@ def _conv_bn_relu(in_ch: int, out_ch: int, kernel: int = 3,
 
 
 class ASPPPool(nn.Module):
-    """Global Average Pooling branch của ASPP."""
+    """
+    Global Average Pooling branch của ASPP.
+    Dùng GroupNorm thay BatchNorm vì sau AdaptiveAvgPool2d(1) tensor có
+    spatial size 1×1 — BN sẽ báo lỗi khi batch_size=1 ở training mode.
+    """
 
-    def __init__(self, in_ch: int, out_ch: int):
+    def __init__(self, in_ch: int, out_ch: int, num_groups: int = 32):
         super().__init__()
+        # Đảm bảo num_groups chia hết out_ch; fallback về 1 nếu cần
+        while out_ch % num_groups != 0 and num_groups > 1:
+            num_groups //= 2
         self.pool = nn.AdaptiveAvgPool2d(1)
-        self.proj = _conv_bn_relu(in_ch, out_ch, kernel=1, padding=0)
+        self.proj = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=1, bias=False),
+            nn.GroupNorm(num_groups, out_ch),
+            nn.ReLU(inplace=True),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         size = x.shape[-2:]
